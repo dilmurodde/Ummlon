@@ -12,22 +12,17 @@ from aiohttp import web
 from utils.db import Database
 import config
 
-# Logging sozlamalari
+# Logging
 logging.basicConfig(level=logging.INFO)
 
-# Bot va Dispatcher obyektlari
+# Bot va Dispatcher
 bot = Bot(token=config.API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 db = Database(config.DB_NAME)
 
-# Holatlar (States)
+# Holatlar
 class Registration(StatesGroup):
-    language = State()
-    name = State()
-    age = State()
-    gender = State()
-    region = State()
-    photo = State()
+    language, name, age, gender, region, photo = State(), State(), State(), State(), State(), State()
 
 class EditProfile(StatesGroup):
     choosing_field = State()
@@ -60,13 +55,22 @@ def get_regions_kb():
     kb.append([types.KeyboardButton(text="Orqaga ⬅️")])
     return types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
+def get_search_kb():
+    kb = [[types.KeyboardButton(text="Yigit topish 🧒"), types.KeyboardButton(text="Qiz topish 🧕")],
+          [types.KeyboardButton(text="Orqaga ⬅️")]]
+    return types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+def get_chat_kb():
+    kb = [[types.KeyboardButton(text="Xabar yuborish ✉️"), types.KeyboardButton(text="Keyingisi ⏭")],
+          [types.KeyboardButton(text="Orqaga ⬅️")]]
+    return types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
 def get_chat_buttons(target_id):
     builder = InlineKeyboardBuilder()
     builder.button(text="Javob berish ✍️", callback_data=f"reply_{target_id}")
     return builder.as_markup()
 
 # --- Handlerlar ---
-
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     user = db.get_user(message.from_user.id)
@@ -99,8 +103,7 @@ async def set_name(message: types.Message, state: FSMContext):
 
 @dp.message(Registration.age)
 async def set_age(message: types.Message, state: FSMContext):
-    if not message.text.isdigit():
-        return await message.answer("Iltimos, faqat raqam kiriting:")
+    if not message.text.isdigit(): return await message.answer("Faqat raqam kiriting:")
     db.update_user(message.from_user.id, age=int(message.text))
     kb = [[types.KeyboardButton(text="Yigit 🧒"), types.KeyboardButton(text="Qiz 🧕")]]
     await message.answer("Jinsingizni tanlang:", reply_markup=types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True))
@@ -130,10 +133,8 @@ async def set_photo(message: types.Message, state: FSMContext):
 async def my_profile(message: types.Message):
     user = db.get_user(message.from_user.id)
     caption = f"👤 Ism: {user[2]}\n🔢 Yosh: {user[3]}\n📍 Viloyat: {user[5]}"
-    if user[7]:
-        await message.answer_photo(user[7], caption=caption, reply_markup=get_profile_kb())
-    else:
-        await message.answer(caption, reply_markup=get_profile_kb())
+    if user[7]: await message.answer_photo(user[7], caption=caption, reply_markup=get_profile_kb())
+    else: await message.answer(caption, reply_markup=get_profile_kb())
 
 @dp.message(F.text == "Profilni tahrirlash 📝")
 async def edit_profile(message: types.Message, state: FSMContext):
@@ -169,36 +170,45 @@ async def update_value(message: types.Message, state: FSMContext):
 # --- Qidiruv va Anonim Chat ---
 @dp.message(F.text == "Qidiruv 🔍")
 async def search_menu(message: types.Message):
-    kb = [[types.KeyboardButton(text="Yigit topish 🧒"), types.KeyboardButton(text="Qiz topish 🧕")], 
-          [types.KeyboardButton(text="Orqaga ⬅️")]]
-    await message.answer("Kimni qidiramiz?", reply_markup=types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True))
+    await message.answer("Kimni qidiramiz?", reply_markup=get_search_kb())
 
 @dp.message(F.text.in_(["Yigit topish 🧒", "Qiz topish 🧕"]))
 async def find_partner(message: types.Message, state: FSMContext):
-    gender = "male" if "Yigit" in message.text else "female"
+    # Agar bu funksiya "Keyingisi" orqali chaqirilsa, jinsni state'dan olamiz
+    data = await state.get_data()
+    if "Keyingisi" in message.text:
+        gender = data.get('search_gender')
+    else:
+        gender = "male" if "Yigit" in message.text else "female"
+        await state.update_data(search_gender=gender)
+    
     users = db.get_random_users(gender)
-    if not users:
-        return await message.answer("Hozircha hech kim topilmadi.")
+    if not users: return await message.answer("Hozircha hech kim topilmadi.")
     
     user = random.choice(users)
     await state.update_data(target_id=user[0], is_fake=user[9])
     
-    kb = [[types.KeyboardButton(text="Xabar yuborish ✉️"), types.KeyboardButton(text="Keyingisi ⏭")], 
-          [types.KeyboardButton(text="Orqaga ⬅️")]]
     caption = f"👤 {user[2]}, {user[3]} yosh\n📍 {user[5]}"
-    if user[7]:
-        await message.answer_photo(user[7], caption=caption, reply_markup=types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True))
-    else:
-        await message.answer(caption, reply_markup=types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True))
+    if user[7]: await message.answer_photo(user[7], caption=caption, reply_markup=get_chat_kb())
+    else: await message.answer(caption, reply_markup=get_chat_kb())
     await state.set_state(SearchState.browsing)
 
-@dp.message(SearchState.browsing, F.text == "Xabar yuborish ✉️")
-async def start_chat(message: types.Message, state: FSMContext):
-    await message.answer("Xabaringizni yozing (u odamga darhol boradi):", reply_markup=types.ReplyKeyboardRemove())
-    await state.set_state(SearchState.chatting)
+@dp.message(SearchState.browsing)
+async def browsing(message: types.Message, state: FSMContext):
+    if message.text == "Keyingisi ⏭":
+        await find_partner(message, state)
+    elif message.text == "Xabar yuborish ✉️":
+        await message.answer("Xabaringizni yozing (u odamga darhol boradi):", reply_markup=types.ReplyKeyboardRemove())
+        await state.set_state(SearchState.chatting)
+    elif message.text == "Orqaga ⬅️":
+        await go_back(message, state)
 
 @dp.message(SearchState.chatting)
 async def send_message_handler(message: types.Message, state: FSMContext):
+    if message.text and any(x in message.text.lower() for x in ['t.me', 'http', '@']):
+        await message.delete()
+        return await message.answer("Link taqiqlangan! 🚫")
+    
     data = await state.get_data()
     target_id = data.get('target_id')
     
@@ -227,12 +237,6 @@ async def reply_callback(callback: types.CallbackQuery, state: FSMContext):
     await state.update_data(target_id=target_id)
     await state.set_state(SearchState.chatting)
     await callback.answer()
-
-# Link filtri
-@dp.message(F.text.contains("t.me") | F.text.contains("http") | F.text.contains("@"))
-async def link_filter(message: types.Message):
-    await message.delete()
-    await message.answer("Link yuborish taqiqlangan! 🚫")
 
 # Render veb-server
 async def handle(request): return web.Response(text="Bot is running!")
