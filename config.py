@@ -1,7 +1,7 @@
 import os
 
 API_TOKEN = "8253888597:AAHgdufA4zg1DKmnt_C3mQ19RP9updrLRAQ"
-ADMIN_ID = 123456789 
+ADMIN_ID = 8386486185
 DB_NAME = "dating_bot.db"
 
 REGIONS = [
