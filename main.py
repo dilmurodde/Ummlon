@@ -15,7 +15,10 @@ import config
 # MongoDB ulanish kodi
 MONGO_URI = "mongodb+srv://Dimajon:DD1559831DD@cluster0.dty9eag.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
+# Logging sozlamalari
 logging.basicConfig(level=logging.INFO)
+
+# Bot va Dispatcher
 bot = Bot(token=config.API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 db = Database(MONGO_URI)
@@ -34,6 +37,11 @@ class SearchState(StatesGroup):
 def get_main_menu():
     kb = [[types.KeyboardButton(text="Qidiruv 🔍"), types.KeyboardButton(text="Profilim 👤")],
           [types.KeyboardButton(text="Sozlamalar ⚙️")]]
+    return types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+def get_search_menu_kb():
+    kb = [[types.KeyboardButton(text="Yigit topish 🧒"), types.KeyboardButton(text="Qiz topish 🧕")],
+          [types.KeyboardButton(text="Orqaga ⬅️")]]
     return types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
 def get_profile_kb():
@@ -182,15 +190,23 @@ async def update_value(message: types.Message, state: FSMContext):
 # --- Qidiruv va Chat ---
 @dp.message(F.text == "Qidiruv 🔍")
 async def search_menu(message: types.Message):
-    await message.answer("Kimni qidiramiz?", reply_markup=get_search_kb())
+    await message.answer("Kimni qidiramiz?", reply_markup=get_search_menu_kb())
 
-@dp.message(F.text.in_(["Yigit topish 🧒", "Qiz topish 🧕"]))
+@dp.message(F.text.in_(["Yigit topish 🧒", "Qiz topish 🧕"]) | (F.text == "Keyingisi ⏭"))
 async def find_partner(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    gender = data.get('search_gender') if "Keyingisi" in message.text else ("male" if "Yigit" in message.text else "female")
-    await state.update_data(search_gender=gender)
+    if message.text == "Keyingisi ⏭":
+        gender = data.get('search_gender')
+    else:
+        gender = "male" if "Yigit" in message.text else "female"
+        await state.update_data(search_gender=gender)
+    
+    if not gender:
+        return await message.answer("Iltimos, qidiruv turini tanlang:", reply_markup=get_search_menu_kb())
+
     users = await db.get_random_users(gender)
-    if not users: return await message.answer("Hozircha hech kim topilmadi.")
+    if not users: return await message.answer("Hozircha hech kim topilmadi.", reply_markup=get_search_menu_kb())
+    
     user = random.choice(users)
     await state.update_data(target_id=user['user_id'], is_fake=user.get('is_fake', 0))
     caption = f"👤 {user['full_name']}, {user['age']} yosh\n📍 {user['region']}"
@@ -202,7 +218,7 @@ async def find_partner(message: types.Message, state: FSMContext):
 async def browsing(message: types.Message, state: FSMContext):
     if message.text == "Keyingisi ⏭": await find_partner(message, state)
     elif message.text == "Xabar yuborish ✉️":
-        await message.answer("Xabaringizni yozing:", reply_markup=get_active_chat_kb())
+        await message.answer("Xabaringizni yozing (suhbat boshlanadi):", reply_markup=get_active_chat_kb())
         await state.set_state(SearchState.chatting)
     elif message.text == "Orqaga ⬅️": await go_back(message, state)
 
