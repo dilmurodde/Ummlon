@@ -12,14 +12,18 @@ from aiohttp import web
 from utils.db import Database
 import config
 
-# MongoDB ulanish kodi (Parolni o'zgartiring!)
-MONGO_URI = "mongodb+srv://Dimajon:PAROLINGIZNI_SHU_YERGA_YOZING@cluster0.dty9eag.mongodb.net/?appName=Cluster0"
+# MongoDB ulanish kodi (Parol kiritildi)
+MONGO_URI = "mongodb+srv://Dimajon:DD1559831DD@cluster0.dty9eag.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
+# Logging sozlamalari
 logging.basicConfig(level=logging.INFO)
+
+# Bot va Dispatcher
 bot = Bot(token=config.API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 db = Database(MONGO_URI)
 
+# Holatlar
 class Registration(StatesGroup):
     language, name, age, gender, region, photo = State(), State(), State(), State(), State(), State()
 
@@ -62,14 +66,18 @@ def get_reply_button(target_id):
 # --- Handlerlar ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
-    user = await db.get_user(message.from_user.id)
-    if not user:
-        kb = [[types.KeyboardButton(text="O'zbekcha 🇺🇿"), types.KeyboardButton(text="English 🇺🇸")]]
-        await message.answer("Assalomu alaykum! Botga xush kelibsiz. Tilni tanlang:", 
-                           reply_markup=types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True))
-        await state.set_state(Registration.language)
-    else:
-        await message.answer("Xush kelibsiz!", reply_markup=get_main_menu())
+    try:
+        user = await db.get_user(message.from_user.id)
+        if not user:
+            kb = [[types.KeyboardButton(text="O'zbekcha 🇺🇿"), types.KeyboardButton(text="English 🇺🇸")]]
+            await message.answer("Assalomu alaykum! Botga xush kelibsiz. Tilni tanlang:", 
+                               reply_markup=types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True))
+            await state.set_state(Registration.language)
+        else:
+            await message.answer("Xush kelibsiz!", reply_markup=get_main_menu())
+    except Exception as e:
+        logging.error(f"Start xatosi: {e}")
+        await message.answer("Ma'lumotlar bazasiga ulanishda xatolik. Iltimos, MongoDB Network Access bo'limidan 0.0.0.0/0 ga ruxsat berganingizni tekshiring.")
 
 @dp.message(F.text == "Orqaga ⬅️")
 async def go_back(message: types.Message, state: FSMContext):
@@ -185,7 +193,15 @@ async def reply_callback(callback: types.CallbackQuery, state: FSMContext):
 
 # Render veb-server
 async def handle(request): return web.Response(text="Bot is running!")
+
 async def main():
+    try:
+        await db.client.admin.command('ping')
+        logging.info("MongoDB-ga muvaffaqiyatli ulanildi! ✅")
+    except Exception as e:
+        logging.error(f"MongoDB ulanishida xatolik: {e} ❌")
+        return
+
     app = web.Application()
     app.router.add_get('/', handle)
     runner = web.AppRunner(app)
