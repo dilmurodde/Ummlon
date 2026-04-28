@@ -20,6 +20,9 @@ bot = Bot(token=config.API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 db = Database(MONGO_URI)
 
+# Premium belgi
+PREMIUM_MARK = "⭐️"
+
 class Registration(StatesGroup):
     language, name, age, gender, region, photo = State(), State(), State(), State(), State(), State()
 
@@ -88,7 +91,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
                            reply_markup=get_lang_kb())
         await state.set_state(Registration.language)
     else:
-        await message.answer("Xush kelibsiz!", reply_markup=get_main_menu())
+        await message.answer(f"Xush kelibsiz, {user.get('full_name')} {PREMIUM_MARK}!", reply_markup=get_main_menu())
 
 @dp.message(F.text == "Orqaga ⬅️")
 async def go_back(message: types.Message, state: FSMContext):
@@ -142,7 +145,7 @@ async def set_region(message: types.Message, state: FSMContext):
 @dp.message(Registration.photo, F.photo)
 async def set_photo(message: types.Message, state: FSMContext):
     await db.update_user(message.from_user.id, photo=message.photo[-1].file_id)
-    await message.answer("Ro'yxatdan o'tish yakunlandi! ✅ / Регистрация завершена! ✅ / Registration completed! ✅", reply_markup=get_main_menu())
+    await message.answer(f"Ro'yxatdan o'tish yakunlandi! {PREMIUM_MARK} ✅", reply_markup=get_main_menu())
     await state.clear()
 
 # --- Profil va Sozlamalar ---
@@ -151,7 +154,7 @@ async def my_profile(message: types.Message):
     user = await db.get_user(message.from_user.id)
     if not user: return await message.answer("Profil topilmadi. /start bosing.")
     gender_text = "Yigit 🧒" if user.get('gender') == "male" else "Qiz 🧕"
-    caption = f"👤 Ism: {user.get('full_name')}\n🔢 Yosh: {user.get('age')}\n📍 Viloyat: {user.get('region')}\n🚻 Jins: {gender_text}"
+    caption = f"👤 Ism: {user.get('full_name')} {PREMIUM_MARK}\n🔢 Yosh: {user.get('age')}\n📍 Viloyat: {user.get('region')}\n🚻 Jins: {gender_text}"
     if user.get('photo'): await message.answer_photo(user['photo'], caption=caption, reply_markup=get_profile_kb())
     else: await message.answer(caption, reply_markup=get_profile_kb())
 
@@ -202,7 +205,7 @@ async def update_value(message: types.Message, state: FSMContext):
         val = message.text
     
     await db.update_user(message.from_user.id, **{field: val})
-    await message.answer("O'zgartirildi! ✅", reply_markup=get_main_menu())
+    await message.answer(f"O'zgartirildi! {PREMIUM_MARK} ✅", reply_markup=get_main_menu())
     await state.clear()
 
 # --- Qidiruv va Chat ---
@@ -226,7 +229,7 @@ async def find_partner(message: types.Message, state: FSMContext):
     
     user = random.choice(users)
     await state.update_data(target_id=user['user_id'], is_fake=user.get('is_fake', 0))
-    caption = f"👤 {user['full_name']}, {user['age']} yosh\n📍 {user['region']}"
+    caption = f"👤 {user['full_name']} {PREMIUM_MARK}, {user['age']} yosh\n📍 {user['region']}"
     if user.get('photo'): await message.answer_photo(user['photo'], caption=caption, reply_markup=get_chat_kb())
     else: await message.answer(caption, reply_markup=get_chat_kb())
     await state.set_state(SearchState.browsing)
@@ -253,7 +256,7 @@ async def chatting_handler(message: types.Message, state: FSMContext):
     else:
         try:
             sender = await db.get_user(message.from_user.id)
-            await bot.send_message(target_id, f"👤 <b>{sender['full_name']}</b>:\n\"{message.text}\"", 
+            await bot.send_message(target_id, f"👤 <b>{sender['full_name']} {PREMIUM_MARK}</b>:\n\"{message.text}\"", 
                                  reply_markup=get_reply_button(message.from_user.id), parse_mode="HTML")
         except: await message.answer("Xabar yuborilmadi. ❌")
 
@@ -261,7 +264,7 @@ async def chatting_handler(message: types.Message, state: FSMContext):
 async def reply_callback(callback: types.CallbackQuery, state: FSMContext):
     target_id = int(callback.data.split("_")[1])
     sender = await db.get_user(target_id)
-    await callback.message.answer(f"👤 <b>{sender['full_name']}</b> bilan suhbat boshlandi:", 
+    await callback.message.answer(f"👤 <b>{sender['full_name']} {PREMIUM_MARK}</b> bilan suhbat boshlandi:", 
                                 reply_markup=get_active_chat_kb(), parse_mode="HTML")
     await state.update_data(target_id=target_id)
     await state.set_state(SearchState.chatting)
