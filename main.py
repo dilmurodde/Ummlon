@@ -1,7 +1,4 @@
-import asyncio
-import logging
-import random
-import os
+
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -20,8 +17,7 @@ bot = Bot(token=config.API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 db = Database(MONGO_URI)
 
-# Premium belgi
-PREMIUM_MARK = "⭐️"
+#= "⭐️"
 
 class Registration(StatesGroup):
     language, name, age, gender, region, photo = State(), State(), State(), State(), State(), State()
